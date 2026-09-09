@@ -1,0 +1,318 @@
+<!doctype html>
+<html lang="ja">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover" />
+<meta name="theme-color" content="#11110f" />
+<title>晴｜モバイルオーダー</title>
+<style>
+:root{--bg:#11110f;--card:#1b1b18;--card2:#22221e;--text:#f5f1e7;--muted:#aaa596;--line:#34342e;--gold:#d8b36a;--gold2:#f1d28e;--danger:#e08478}
+*{box-sizing:border-box}html,body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans","Yu Gothic",sans-serif}body{min-height:100vh}
+.shell{max-width:720px;margin:0 auto;padding:env(safe-area-inset-top) 16px calc(110px + env(safe-area-inset-bottom))}
+header{padding:28px 2px 18px;display:flex;justify-content:space-between;align-items:flex-end;border-bottom:1px solid var(--line)}
+.brand{font-family:serif;font-size:38px;letter-spacing:.18em}.sub{font-size:11px;color:var(--muted);letter-spacing:.18em}.seat{text-align:right;font-size:13px;color:var(--gold2)}
+.catTitle{margin:24px 0 12px;font-size:13px;letter-spacing:.14em;color:var(--muted)}
+.categoryGrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+.categoryBtn{border:1px solid var(--line);background:var(--card);color:var(--text);border-radius:14px;padding:18px 14px;text-align:left;font:inherit}
+.categoryBtn strong{display:block;font-size:17px;margin-bottom:5px}.categoryBtn span{font-size:12px;color:var(--muted)}
+.menuHead{display:flex;justify-content:space-between;align-items:center;margin:22px 0 8px;gap:12px}
+.menuHead h2{margin:0;font-size:20px;color:var(--gold2)}
+.backCat{border:1px solid var(--line);background:transparent;color:var(--text);border-radius:10px;padding:9px 11px;font:inherit}
+.item{display:grid;grid-template-columns:1fr auto;gap:12px;padding:16px 0;border-bottom:1px solid var(--line)}
+.item h3{margin:0 0 6px;font-size:16px;font-weight:650}.desc{margin:0;color:var(--muted);font-size:12px;line-height:1.55}.price{margin-top:8px;font-size:14px;color:var(--gold2)}
+.stepper{display:flex;align-items:center;gap:12px;align-self:center}.stepper button{width:38px;height:38px;border-radius:50%;border:1px solid #4a493f;background:var(--card2);color:var(--text);font-size:22px}.qty{min-width:18px;text-align:center;font-weight:700}
+.cartbar{position:fixed;left:0;right:0;bottom:0;padding:12px 16px calc(12px + env(safe-area-inset-bottom));background:linear-gradient(180deg,transparent 0,#11110f 22%,#11110f 100%)}
+.cartinner{max-width:688px;margin:auto}.orderBtn{width:100%;border:0;border-radius:16px;background:var(--gold);color:#1c180f;padding:16px;font-weight:800;font-size:16px;display:flex;justify-content:space-between}.orderBtn:disabled{opacity:.35}
+.ghost{width:100%;border:1px solid var(--line);background:transparent;color:var(--text);padding:13px;border-radius:13px}
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,.72);display:none;align-items:flex-end;z-index:10}.sheet{width:100%;max-height:88vh;overflow:auto;background:#181815;border-radius:22px 22px 0 0;padding:20px 18px calc(20px + env(safe-area-inset-bottom));box-shadow:0 -20px 60px rgba(0,0,0,.35)}
+.sheetinner{max-width:688px;margin:auto}.sheet h2{margin:0 0 14px}.row{display:flex;justify-content:space-between;gap:14px;padding:10px 0;border-bottom:1px solid var(--line)}
+textarea{width:100%;min-height:80px;margin:14px 0;border:1px solid var(--line);background:#11110f;color:var(--text);border-radius:12px;padding:12px;font:inherit}
+.primary{width:100%;border:0;border-radius:14px;background:var(--gold);color:#1c180f;padding:15px;font-weight:800;font-size:16px;margin-top:8px}.primary:disabled{opacity:.55}
+.secondary{width:100%;border:1px solid var(--line);border-radius:14px;background:transparent;color:var(--text);padding:13px;margin-top:9px}
+.center{text-align:center;padding:44px 8px}.big{font-size:42px;margin-bottom:12px}.status{display:inline-block;margin:10px 0;padding:8px 12px;border-radius:999px;background:#24241f;color:var(--gold2);font-size:13px}.err{color:var(--danger)}.loading{padding:50px 0;text-align:center;color:var(--muted)}
+</style>
+</head>
+<body>
+<div class="shell">
+<header><div><div class="brand">晴</div><div class="sub">MOBILE ORDER</div></div><div class="seat" id="seat">お席を確認中…</div></header>
+<div id="content"><div class="loading">メニューを読み込んでいます…</div></div>
+</div>
+
+<div class="cartbar" id="cartbar" style="display:none">
+  <div class="cartinner">
+    <button class="orderBtn" id="openCart"><span id="cartCount">0点</span><span id="cartTotal">¥0</span></button>
+  </div>
+</div>
+
+<div class="overlay" id="overlay">
+  <div class="sheet"><div class="sheetinner">
+    <h2>ご注文内容</h2>
+    <div id="cartRows"></div>
+    <textarea id="orderNote" maxlength="500" placeholder="お店への伝言があれば入力してください（任意）"></textarea>
+    <button class="primary" id="submitOrder">この内容で注文する</button>
+    <button class="secondary" id="closeCart">戻る</button>
+  </div></div>
+</div>
+
+<script>
+const SUPABASE='https://ickhawaosoangozvmbbd.supabase.co';
+const ANON_KEY='eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imlja2hhd2Fvc29hbmdvenZtYmJkIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODg4ODMyNzgsImV4cCI6MjEwNDQ1OTI3OH0.SP-bTOyMICqIdB-A3Z7hSh4Pw_URurlwEzEhGI8h9Z4';
+
+const params=new URLSearchParams(location.search);
+const tableToken=params.get('token');
+
+let menu=[],table=null,cart={},currentCategory=null,orderPollTimer=null;
+
+const CATEGORY_ORDER=[
+  '本日のおすすめ','前菜・酒肴','焼物・揚物','ステーキ・肉',
+  'ご飯・ピザ・麺類','デザート','お飲み物'
+];
+
+const yen=n=>'¥'+Number(n).toLocaleString('ja-JP');
+
+function esc(s){
+  return String(s||'').replace(/[&<>"']/g,c=>({
+    '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'
+  }[c]));
+}
+
+async function fetchWithTimeout(url,opts={},ms=10000){
+  const controller=new AbortController();
+  const timer=setTimeout(()=>controller.abort(),ms);
+  try{
+    return await fetch(url,{...opts,signal:controller.signal});
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+async function rest(path){
+  const r=await fetchWithTimeout(
+    SUPABASE+'/rest/v1/'+path,
+    {headers:{apikey:ANON_KEY,Authorization:'Bearer '+ANON_KEY}},
+    10000
+  );
+  let j=[];
+  try{j=await r.json()}catch(e){}
+  if(!r.ok)throw new Error(j.message||'rest_failed');
+  return j;
+}
+
+async function rpc(name,body,timeout=10000){
+  let r;
+  try{
+    r=await fetchWithTimeout(
+      SUPABASE+'/rest/v1/rpc/'+name,
+      {
+        method:'POST',
+        headers:{
+          apikey:ANON_KEY,
+          Authorization:'Bearer '+ANON_KEY,
+          'Content-Type':'application/json'
+        },
+        body:JSON.stringify(body||{})
+      },
+      timeout
+    );
+  }catch(e){
+    if(e && e.name==='AbortError') throw new Error('timeout');
+    throw e;
+  }
+
+  let j=null;
+  try{j=await r.json()}catch(e){}
+  if(!r.ok){
+    const msg=j?.message||j?.error||'rpc_failed';
+    throw new Error(msg);
+  }
+  return j;
+}
+
+function updateBar(){
+  const rows=Object.entries(cart).filter(x=>x[1]>0);
+  const count=rows.reduce((s,x)=>s+x[1],0);
+  const total=rows.reduce((s,x)=>{
+    const i=menu.find(m=>m.id===x[0]);
+    return s+(i?i.price:0)*x[1];
+  },0);
+  document.getElementById('cartbar').style.display=count?'block':'none';
+  document.getElementById('cartCount').textContent=count+'点';
+  document.getElementById('cartTotal').textContent=yen(total);
+}
+
+function categoryNames(){
+  const set=[...new Set(menu.map(i=>i.category||'その他'))];
+  return set.sort((a,b)=>{
+    const ai=CATEGORY_ORDER.indexOf(a),bi=CATEGORY_ORDER.indexOf(b);
+    if(ai===-1&&bi===-1)return a.localeCompare(b,'ja');
+    if(ai===-1)return 1;
+    if(bi===-1)return -1;
+    return ai-bi;
+  });
+}
+
+function renderCategories(){
+  currentCategory=null;
+  const cats=categoryNames();
+  let out='<div class="catTitle">カテゴリーから選ぶ</div><div class="categoryGrid">';
+  cats.forEach(cat=>{
+    const count=menu.filter(i=>(i.category||'その他')===cat).length;
+    out+='<button class="categoryBtn" data-cat="'+esc(cat)+'"><strong>'+esc(cat)+'</strong><span>'+count+'品</span></button>';
+  });
+  out+='</div>';
+  document.getElementById('content').innerHTML=out||'<div class="center"><div class="big">🍶</div><p>現在ご注文いただけるメニューはありません。</p></div>';
+  document.querySelectorAll('[data-cat]').forEach(b=>b.onclick=()=>renderCategory(b.dataset.cat));
+}
+
+function renderCategory(cat){
+  currentCategory=cat;
+  const items=menu
+    .filter(i=>(i.category||'その他')===cat)
+    .sort((a,b)=>(a.sort_order||0)-(b.sort_order||0)||a.name.localeCompare(b.name,'ja'));
+
+  let out='<div class="menuHead"><h2>'+esc(cat)+'</h2><button class="backCat" id="backCategories">← カテゴリー</button></div>';
+
+  items.forEach(i=>{
+    out+='<div class="item"><div><h3>'+esc(i.name)+'</h3>'+
+      (i.description?'<p class="desc">'+esc(i.description)+'</p>':'')+
+      '<div class="price">'+yen(i.price)+'</div></div>'+
+      '<div class="stepper"><button data-act="minus" data-id="'+i.id+'">−</button>'+
+      '<span class="qty" id="q-'+i.id+'">'+(cart[i.id]||0)+'</span>'+
+      '<button data-act="plus" data-id="'+i.id+'">＋</button></div></div>';
+  });
+
+  document.getElementById('content').innerHTML=out;
+  document.getElementById('backCategories').onclick=renderCategories;
+
+  document.querySelectorAll('[data-act]').forEach(b=>{
+    b.onclick=()=>{
+      const id=b.dataset.id;
+      cart[id]=Math.max(0,(cart[id]||0)+(b.dataset.act==='plus'?1:-1));
+      document.getElementById('q-'+id).textContent=cart[id];
+      updateBar();
+    };
+  });
+}
+
+function renderCart(){
+  let out='';
+  Object.entries(cart).filter(x=>x[1]>0).forEach(x=>{
+    const i=menu.find(m=>m.id===x[0]);
+    out+='<div class="row"><div>'+esc(i.name)+' × '+x[1]+'</div><strong>'+yen(i.price*x[1])+'</strong></div>';
+  });
+  document.getElementById('cartRows').innerHTML=out;
+  document.getElementById('overlay').style.display='flex';
+}
+
+async function init(){
+  if(!tableToken){
+    document.getElementById('seat').textContent='席情報なし';
+    document.getElementById('content').innerHTML='<div class="center"><div class="big">⚠️</div><p class="err">テーブルQRからアクセスしてください。</p></div>';
+    return;
+  }
+
+  try{
+    const [tables,items]=await Promise.all([
+      rpc('lookup_dining_table',{p_token:tableToken}),
+      rest('menu_items?select=id,name,description,category,price,sort_order&is_available=eq.true&order=sort_order.asc,name.asc')
+    ]);
+
+    if(!tables.length)throw new Error('invalid_table');
+    table=tables[0];
+    menu=items||[];
+    document.getElementById('seat').textContent='お席：'+table.name;
+    renderCategories();
+  }catch(e){
+    console.error(e);
+    document.getElementById('seat').textContent='読み込みエラー';
+    document.getElementById('content').innerHTML='<div class="center"><div class="big">⚠️</div><p class="err">このQRは現在ご利用いただけません。</p></div>';
+  }
+}
+
+document.getElementById('openCart').onclick=renderCart;
+document.getElementById('closeCart').onclick=()=>document.getElementById('overlay').style.display='none';
+document.getElementById('overlay').onclick=e=>{
+  if(e.target.id==='overlay')e.currentTarget.style.display='none';
+};
+
+document.getElementById('submitOrder').onclick=async function(){
+  const btn=this;
+  const items=Object.entries(cart)
+    .filter(x=>x[1]>0)
+    .map(x=>({menu_item_id:x[0],quantity:x[1]}));
+
+  if(!items.length)return;
+
+  btn.disabled=true;
+  btn.textContent='送信中…';
+
+  try{
+    // Edge Functionを通さず、Supabase RPCへ直接送る
+    const res=await rpc('place_mobile_order',{
+      p_table_token:tableToken,
+      p_items:items,
+      p_note:document.getElementById('orderNote').value
+    },10000);
+
+    document.getElementById('overlay').style.display='none';
+    document.getElementById('cartbar').style.display='none';
+    showOrder(res.order.public_token);
+  }catch(e){
+    console.error(e);
+    if(e.message==='timeout'){
+      alert('通信がタイムアウトしました。注文は送信されていない可能性があります。もう一度お試しください。');
+    }else if(String(e.message).includes('menu_changed')){
+      alert('メニュー内容が更新されました。画面を再読み込みしてください。');
+    }else{
+      alert('注文を送信できませんでした。もう一度お試しください。');
+    }
+  }finally{
+    btn.disabled=false;
+    btn.textContent='この内容で注文する';
+  }
+};
+
+function showOrder(token){
+  if(orderPollTimer){
+    clearInterval(orderPollTimer);
+    orderPollTimer=null;
+  }
+
+  document.getElementById('content').innerHTML=
+    '<div class="center"><div class="big">✓</div><h2>ご注文を承りました</h2>'+
+    '<div class="status" id="status">受付済み</div>'+
+    '<p class="desc">注文状況はこの画面で確認できます。</p>'+
+    '<button class="ghost" id="backMenu">追加注文する</button></div>';
+
+  document.getElementById('backMenu').onclick=()=>{
+    cart={};
+    document.getElementById('orderNote').value='';
+    document.getElementById('overlay').style.display='none';
+    renderCategories();
+    updateBar();
+  };
+
+  const labels={
+    pending:'受付済み',
+    accepted:'確認済み',
+    preparing:'調理中',
+    served:'提供済み',
+    cancelled:'キャンセル'
+  };
+
+  async function poll(){
+    try{
+      const r=await rpc('get_mobile_order',{p_token:token},8000);
+      const el=document.getElementById('status');
+      if(el && r?.order)el.textContent=labels[r.order.status]||r.order.status;
+    }catch(e){}
+  }
+
+  poll();
+  orderPollTimer=setInterval(poll,8000);
+}
+
+init();
+</script>
+</body>
+</html>
